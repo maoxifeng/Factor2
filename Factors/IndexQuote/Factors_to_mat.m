@@ -1,0 +1,2 @@
+load('/home/liushuanglong/MyFiles/Data/Factors/HLZ/Common/MarketReturn/Return_HS300_3145_2009_to_3000_array.mat')
+save('/home/liushuanglong/MyFiles/Data/Factors/HLZ/Common/MarketReturn/Return_HS300_3145_2009_to_3000_mat.mat', 'Return_HS300_3145_2009_to_3000', 'colNames') 
