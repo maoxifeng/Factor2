@@ -1,0 +1,13 @@
+every time run the following .py firstly one by one:
+
+
+
+Common.InitCode.py
+
+FundamentalData.CommonData.py
+
+QT_DailyQuote.DailyQuote.py
+
+QT_IndexQuote.IndexQuote.py
+
+
