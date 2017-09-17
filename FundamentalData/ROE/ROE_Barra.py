@@ -47,31 +47,3 @@ ROEHS300_BarraReturn = facret.FactorBarraReturnGet(loadDF=dataROEDF, facPath=ROE
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
