@@ -2,9 +2,9 @@
 
 
 
-'''
+"""
 use a class contains all factors
-'''
+"""
 
 import os
 import time 
@@ -16,26 +16,58 @@ import statsmodels.api as sm
 
 
 class Factors(object):
+    """factor class"""
 
-    '''factor class'''
-    
-    
-    '''
-    1. init method, to make public dir 
-    '''
+    # ----------------------------------------------------------------------
+    # 1. init method, to make public dir 
+
     def __init__(self, savePathMain='/data/liushuanglong/'):
-        self.facMainDir = savePathMain + 'Factors'
+        """Make directory and get data directory. 
+
+        Args:
+        -----
+        savePathMain: string, default '/data/liushuanglong/'.
+            Main directory of all data.
+        
+        Return:  
+        -------
+        facMainDir: string.
+            Main directory of all factors. 
+        dataMainDir: string. 
+            Main directory of all data, already created by matlab script, 
+            the same time, two sub-directory: Data/, JYDB2/ made. 
+         
+        DirDiagram:
+        -----------
+        Factor/ 
+        Data/Common/
+        Data/JYDB2/
+        """
+        self.facMainDir = savePathMain + 'Factors/'
+        self.dataMainDir = savePathMain + 'Data/' 
+        self.dataComDir = savePathMain + 'Data/Commom/'
+        self.dataJYDBDir = savePathMain + 'Data/JYDB2/'
         # create the 'Factors' folder
         if not os.path.exists(self.facMainDir):
             os.mkdir(self.facMainDir)
             print self.facMainDir, 'folder created!'
-        pass 
+        if not os.path.exists(self.dataMainDir):
+            print self.dataMainDir, 'not exist!'
+        self.init_code()  # initialize inner code 
+        # codeDF, has 4 columns, as follows:
+        # 0: InnerCode, 1: CompanyCode, 2: SecuCode, 3: SecuMarket
+        self.codeDF = self.codeDFGet()
+        self.dataInnerCodeArr = self.codeDF.iloc[:, 0].values.astype(float)
+        self.dataComCodeArr = self.codeDF.iloc[:, 1].values.astype(float)
+        self.dateArr = self.dateSerArrGet()
+        self.dataDSArr = self.dateArr[:, 0]
+        return 
 
-    	
-    '''
-    2. some small common methods 
-    '''
-    def SheetToDFGet(self, path):
+    # ----------------------------------------------------------------------
+    # 2. some small common methods 
+
+    def SheetToDF(self, path):
+        # convert raw single company sheet dataStruct to single dataframe
         dataRaw = sio.loadmat(path)
         dataSt = dataRaw['dataStruct'][0, 0]
         col = dataSt.dtype.names
@@ -43,7 +75,16 @@ class Factors(object):
         dataDF = pd.DataFrame(dataArr, columns=col)
         return dataDF
     
-    def ForArrToDFGet(self, path):
+    def FormArrToDF(self, path):
+        """
+        convert single formative dataDict saved by sio.io to single dataframe
+        
+        show dataDic as follows: 
+        dataDic = {'colInnerCode': self.dataInnerCodeArr, \
+                   'indDate': dataDSUseArr.reshape(len(dataDSUseArr), 1), \
+                   item: dataArr,
+                   'arrKey': [item, 'indDate', 'colInnerCode']}
+        """
         dataRawDic = sio.loadmat(path)
         arrKey = dataRawDic['arrKey']
         arrKey = [key.split()[0] for key in arrKey]
@@ -55,15 +96,18 @@ class Factors(object):
         return dataAllDF
     
     
-    def AllArrToDFGet(self, path):
-        '''depend on the file name which has digits'''
+    def AllFormArrToDF(self, path):
+        """
+        depend on the file name which includes digit 
+        will use FormArrToDF funtion 
+        """
         fileNameLis = os.listdir(path)
         fileNameDic = {float(filter(str.isdigit, ifile)): ifile for ifile in fileNameLis}
         fileYearLis = sorted(fileNameDic.keys())
         dfLis = []
         for ifileYear in fileYearLis:
             ifilePath = path + '/' + fileNameDic[ifileYear]
-            dfTemp = ForArrToDFGet(ifilePath)
+            dfTemp = self.FormArrToDF(ifilePath)
             dfLis = dfLis + [dfTemp]
             if ifileYear == fileYearLis[-1]:
                 dataInnerCode = dfTemp.columns
@@ -74,7 +118,16 @@ class Factors(object):
         return dataDF
     
     
-    def ItemArrToDFGet(self, path):
+    def ItemArrToDF(self, path):
+        """
+        convert single dataDict saved by sio.io to single dataframe
+        
+        show dataDic as follows: 
+        dataDic = {'items': np.array(items, dtype=object), \
+                   'indDate': dataDSUseArr.reshape(len(dataDSUseArr), 1), \
+                   item: dataArr,
+                   'arrKey': [item, 'indDate', 'items']}
+        """
         dataRawDic = sio.loadmat(path)
         arrKey = dataRawDic['arrKey']
         arrKey = [key.split()[0] for key in arrKey]
@@ -83,66 +136,72 @@ class Factors(object):
         dataAllArr = dataRawDic[arrKey[0]]
         dataAllDF = pd.DataFrame(dataAllArr, index=dataDSAllArr,
                                  columns=dataItemsLis)
-    
         return dataAllDF
     
-    
-    def ItemAllArrToDFGet(self, path):
+    def AllItemArrToDF(self, path):
         fileNameLis = os.listdir(path)
         fileNameDic = {float(filter(str.isdigit, ifile)): ifile for ifile in fileNameLis}
         fileYearLis = sorted(fileNameDic.keys())
         dfLis = []
         for ifileYear in fileYearLis:
             ifilePath = path + '/' + fileNameDic[ifileYear]
-            dfTemp = ItemArrToDFGet(ifilePath)
+            dfTemp = self.ItemArrToDF(ifilePath)
             dfLis = dfLis + [dfTemp]
         dataDF = pd.concat(dfLis)
         dataDF = dataDF.sort_index()
         return dataDF
     
-    
-    def nonNanFirIndGet(self, arr):
-    
-        '''return the index of the first non nan row of the load array'''
+    def nonNanFirInd(self, arr):
+        """return the index of the first non nan row of the load array."""
         for i in xrange(len(arr)):
             if len(arr[i][~np.isnan(arr[i])]) > 0:
                 break
         return i
 
+    # ----------------------------------------------------------------------
+    # 3. code and date methods
 
-
-
-    '''
-    3. code and date methods 
-    '''
     def init_code(self):
-        pathCode = '/data/liushuanglong/MyFiles/Data/Common/astock.mat'
-        dataDF = cs.SheetToDFGet(pathCode).set_index('InnerCode')
-        lastInnerCode = sio.loadmat('/data/liushuanglong/MyFiles/Data/Factors/HLZ/Time&Code/ordInnerCode.mat')['ordInnerCode'][0]
+        pathCode = self.dataComDir + 'astock.mat'
+        dataDF = self.SheetToDF(pathCode).set_index('InnerCode')
         newInnerCode = dataDF.index.tolist()
-       
-        addInnerCode = list(set(newInnerCode) - set(lastInnerCode))
-        orderInnerCode = np.concatenate([lastInnerCode, addInnerCode]).astype(float)
-       
-        dataDic = {'ordInnerCode': orderInnerCode}
-        sio.savemat('/data/liushuanglong/MyFiles/Data/Factors/HLZ/Time&Code/ordInnerCode.mat', dataDic)
- 
-        pass        
+        timeCodeFold = self.facMainDir + 'Time_Code/'
+        ordInnerCodeFileName = timeCodeFold + 'ordInnerCode.mat' 
+        if not os.path.exists(timeCodeFold):
+            os.mkdir(timeCodeFold)
+            dataDic = {'ordInnerCode': newInnerCode}
+            sio.savemat(ordInnerCodeFileName, dataDic)
+            self.ordInnerCode = newInnerCode  
+        else:
+            lastInnerCode = sio.loadmat(ordInnerCodeFileName)['ordInnerCode'][0]
+            addInnerCode = list(set(newInnerCode) - set(lastInnerCode))
+            orderInnerCode = np.concatenate([lastInnerCode, addInnerCode]).astype(float)
+            dataDic = {'ordInnerCode': orderInnerCode}
+            sio.savemat(ordInnerCodeFileName, dataDic)
+            self.ordInnerCode = orderInnerCode 
 
     def codeDFGet(self, use=True):
-        pathCode = '/data/liushuanglong/MyFiles/Data/Common/astock.mat'
-        dataDF = cs.SheetToDFGet(pathCode).set_index('InnerCode', drop=False)
-        ordInnerCode = sio.loadmat('/data/liushuanglong/MyFiles/Data/Factors/HLZ/Time&Code/ordInnerCode.mat')['ordInnerCode'][0]
-        ordCodeDF = dataDF.reindex(ordInnerCode)
+        pathCode = self.dataComDir + 'astock.mat'
+        dataDF = self.SheetToDF(pathCode).set_index('InnerCode', drop=False)
+        ordCodeDF = dataDF.reindex(self.ordInnerCode)
         ordCodeDF.reset_index(drop=True, inplace=True)
         if use:
+            # 0: InnerCode, 1: CompanyCode, 2: SecuCode, 4: SecuMarket
             ordCodeDF = ordCodeDF.iloc[:, [0, 1, 2, 4]]
         return ordCodeDF
     
-    
     def dateSerArrGet(self):
-        path = '/data/liushuanglong/MyFiles/Data/Common/alltdays.mat'
-        dataRawDF = cs.SheetToDFGet(path)
+        """Get the date series of the trading day. 
+
+        Returns:
+        --------
+        DSArr: DF
+            It has four columns:
+            0: date, 1: month, 3: if the first day of the month 
+            4: if the last day of the month
+        """
+        path = self.dataComDir + 'alltdays.mat'
+        dataRawDF = self.SheetToDF(path)
         dsArr = dataRawDF.values.astype(float)[:, 0]
         DSArr = np.zeros((len(dsArr), 4))
         DSArr[:, 0]= dsArr
@@ -155,12 +214,12 @@ class Factors(object):
     
     def codeIndexDFGet(self, codeStr='HS300', saveBool=False):
     
-        '''formative sheet, values are 0 or 1 '''
+        """formative sheet, values are 0 or 1 """
         # depend on the order of the code, the same order with the code
         codeDic={'HS300': 3145, 'ZZ800': 4982}
         codeInt = codeDic[codeStr]
         pathInd = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_IndexComponent/idxcomponent.mat'
-        dataRawDF = cs.SheetToDFGet(pathInd)
+        dataRawDF = self.SheetToDF(pathInd)
     
         dataColUseLis = [u'IndexInnerCode', u'SecuInnerCode', u'InDate', u'OutDate']
         dataUseArr = dataRawDF[dataColUseLis].values.astype(float)
@@ -168,24 +227,21 @@ class Factors(object):
     
         dataIndArr[dataIndArr[:, 3]==1010101.0, 3] = 90000000.0
     
-        dataDSArr = dateSerArrGet()[:, 0]
-    
-        dataInnerCodeArr = codeDFGet().iloc[:, 0].values.astype(float)   # default value is 0
+        self.dataDSArr = dateSerArrGet()[:, 0]
     
         # formative index array
-        #
-        forIndexArr = np.zeros((len(dataDSArr), len(dataInnerCodeArr)))
+        forIndexArr = np.zeros((len(self.dataDSArr), len(self.dataInnerCodeArr)))
         dataInnerCodeUseArr = np.unique(dataIndArr[:, 1])  #  use codes belong to index sheet
         for iicode, icode in enumerate(dataInnerCodeUseArr):
             arrTemp = dataIndArr[dataIndArr[:, 1]==icode, 2:]   # select one code indate, outdate data
             for ilen in range(len(arrTemp)):          #
-                useBool = (dataDSArr>=arrTemp[ilen, 0]) & (dataDSArr<arrTemp[ilen, 1])
-                forIndexArr[useBool, dataInnerCodeArr==icode] = 1     #  if the code is in the pool, the value is 1
+                useBool = (self.dataDSArr>=arrTemp[ilen, 0]) & (self.dataDSArr<arrTemp[ilen, 1])
+                forIndexArr[useBool, self.dataInnerCodeArr==icode] = 1     #  if the code is in the pool, the value is 1
     
         if saveBool:
             arrName = codeStr + '_IndexCode'
-            dataDic={'colInnerCode': dataInnerCodeArr,
-                     'indDate': dataDSArr.reshape(len(dataDSArr), 1),
+            dataDic={'colInnerCode': self.dataInnerCodeArr,
+                     'indDate': self.dataDSArr.reshape(len(self.dataDSArr), 1),
                      arrName: forIndexArr, \
                      'arrKey': [arrName, 'indDate', 'colNames']}
     
@@ -193,24 +249,22 @@ class Factors(object):
             saveName = savePath + '/' + arrName + '_array.mat'
             sio.savemat(saveName, dataDic)
             print 'file saved ~'
-        forIndexDF = pd.DataFrame(forIndexArr, index=dataDSArr, columns=dataInnerCodeArr)
+        forIndexDF = pd.DataFrame(forIndexArr, index=self.dataDSArr, columns=self.dataInnerCodeArr)
         return forIndexDF
 
- 
+    # ----------------------------------------------------------------------
+    # 4. update methods, default form
 
-    '''
-    4. update methods, default form  
-    '''
 	def UpdateFormDataGet(self, dataFacDF, savePath, facName):
 	
 	    # year used
-	    toYear = int(dataDSArr[-1])/10000
-	    toYearFirInd = np.where(dataDSArr > toYear*10000)[0][0]
-	    toYearFir = dataDSArr[toYearFirInd]
+	    toYear = int(self.dataDSArr[-1])/10000
+	    toYearFirInd = np.where(self.dataDSArr > toYear*10000)[0][0]
+	    toYearFir = self.dataDSArr[toYearFirInd]
 	
 	    pastYear = toYear - 1
 	    pastYearLasInd = toYearFirInd - 1
-	    pastYearLas = dataDSArr[pastYearLasInd]
+	    pastYearLas = self.dataDSArr[pastYearLasInd]
 	    # save folder
 	    facSavePath = savePath + '/' + facName + '/'
 	    if not os.path.exists(facSavePath):
@@ -231,20 +285,20 @@ class Factors(object):
 	        print 'update 2017 data'
 	        # load 2017 data
 	        toYearPath = facSavePath + fileNameDic[toYear]
-	        dataOldFacDF = cs.ForArrToDFGet(toYearPath)
+	        dataOldFacDF = self.FormArrToDF(toYearPath)
 	        oldDateEnd = dataOldFacDF.index[-1]
 	
-	        if oldDateEnd == dataDSArr[-1]:
+	        if oldDateEnd == self.dataDSArr[-1]:
 	            print 'already updated'
 	
 	        else:
 	            # calculate formula
-	            dataNewFacDF = dataOldFacDF.reindex(index=dataDSArr[toYearFirInd:], columns=dataInnerCodeArr)
-	            dataAddDSArr = dataDSArr[dataDSArr>oldDateEnd]
+	            dataNewFacDF = dataOldFacDF.reindex(index=self.dataDSArr[toYearFirInd:], columns=self.dataInnerCodeArr)
+	            dataAddDSArr = self.dataDSArr[self.dataDSArr>oldDateEnd]
 	            dataNewFacDF.loc[dataAddDSArr] = dataFacDF.loc[dataAddDSArr]
 	            dataNewFacArr = dataNewFacDF.values.astype(float)
-	            dataDic = {'colInnerCode': dataInnerCodeArr,  # depend on adj close innercode
-	                    'indDate': dataDSArr[toYearFirInd:].reshape(len(dataDSArr[toYearFirInd:]), 1), # depend on adj close date
+	            dataDic = {'colInnerCode': self.dataInnerCodeArr,  # depend on adj close innercode
+	                    'indDate': self.dataDSArr[toYearFirInd:].reshape(len(self.dataDSArr[toYearFirInd:]), 1), # depend on adj close date
 	                    facName: dataNewFacArr,
 	                    'arrKey': [facName, 'indDate', 'colInnerCode']}
 	            facSavePathName = facSavePath + facName + '_' + str(toYear) + '_arr.mat'
@@ -258,8 +312,8 @@ class Factors(object):
 	
 	        dataNewFacDF = dataFacDF.loc[toYearFir:]
 	        dataNewFacArr = dataNewFacDF.values.astype(float)
-	        dataDic = {'colInnerCode': dataInnerCodeArr,  # depend on adj close innercode
-	                    'indDate': dataDSArr[toYearFirInd:].reshape(len(dataDSArr[toYearFirInd:]), 1), # depend on adj close date
+	        dataDic = {'colInnerCode': self.dataInnerCodeArr,  # depend on adj close innercode
+	                    'indDate': self.dataDSArr[toYearFirInd:].reshape(len(self.dataDSArr[toYearFirInd:]), 1), # depend on adj close date
 	                    facName: dataNewFacArr,
 	                    'arrKey': [facName, 'indDate', 'colInnerCode']}
 	        facSavePathName = facSavePath + facName + '_' + str(toYear) + '_arr.mat'
@@ -269,17 +323,17 @@ class Factors(object):
 	        if pastYear in fileYearLis:
 	            print 'update 2016 file'
 	            pastYearPath = facSavePath + fileNameDic[pastYear]
-	            dataPastOldFacDF = cs.ForArrToDFGet(pastYearPath)
+	            dataPastOldFacDF = self.FormArrToDF(pastYearPath)
 	            pastOldDateEnd = dataPastOldFacDF.index[-1]
 	            if pastOldDateEnd == pastYearLas:
 	                print 'do not need to update 2016 file'
 	            else:
-	                dataPastDSArr = dataDSArr[(dataDSArr>(pastYear*10000)) & (dataDSArr<(toYear*10000))]
-	                dataPastFacDF = dataPastOldFacDF.reindex(index=dataPastDSArr, columns=dataInnerCodeArr)
+	                dataPastDSArr = self.dataDSArr[(self.dataDSArr>(pastYear*10000)) & (self.dataDSArr<(toYear*10000))]
+	                dataPastFacDF = dataPastOldFacDF.reindex(index=dataPastDSArr, columns=self.dataInnerCodeArr)
 	                dataPastAddDSArr = dataPastDSArr[dataPastDSArr>pastOldDateEnd]
 	                dataPastFacDF.loc[dataPastAddDSArr] = dataFacDF.loc[pastOldDateEnd:pastYearLas]
 	                dataPastFacArr = dataPastFacDF.values.astype(float)
-	                pastDataDic = {'colInnerCode': dataInnerCodeArr,  # depend on adj close innercode
+	                pastDataDic = {'colInnerCode': self.dataInnerCodeArr,  # depend on adj close innercode
 	                        'indDate': dataPastDSArr.reshape(len(dataPastDSArr), 1), # depend on adj close date
 	                        facName: dataPastFacArr,
 	                        'arrKey': [facName, 'indDate', 'colInnerCode']}
@@ -292,7 +346,7 @@ class Factors(object):
 	
 	            # create to 2016 file
 	            dataPastFacDF = dataFacDF.loc[:pastYearLas]
-	            dataPastDSArr = dataDSArr[dataDSArr<=pastYearLas]
+	            dataPastDSArr = self.dataDSArr[self.dataDSArr<=pastYearLas]
 	            dataPastFacArr = dataPastFacDF.values.astype(float)
 	            pastDataDic = {'colInnerCode': dataPastFacDF.columns.tolist(),
 	                           'indDate': dataPastDSArr.reshape(len(dataPastDSArr), 1),
@@ -303,20 +357,19 @@ class Factors(object):
 	            print 'to2016 file created'
 	
 	    return None
-	(wfwfw)
 	
 	def UpdateItemDataGet(self, dataFacDF, savePath, facName):
 	
 	#    dataFacDF=dataFactorReturnDF; facName=facName;facSavePath=ROESavePath
 	    # year used
 	
-	    toYear = int(dataDSArr[-1])/10000
-	    toYearFirInd = np.where(dataDSArr > toYear*10000)[0][0]
-	    toYearFir = dataDSArr[toYearFirInd]
+	    toYear = int(self.dataDSArr[-1])/10000
+	    toYearFirInd = np.where(self.dataDSArr > toYear*10000)[0][0]
+	    toYearFir = self.dataDSArr[toYearFirInd]
 	
 	    pastYear = toYear - 1
 	    pastYearLasInd = toYearFirInd - 1
-	    pastYearLas = dataDSArr[pastYearLasInd]
+	    pastYearLas = self.dataDSArr[pastYearLasInd]
 	
 	    facSavePath = savePath + '/' + facName + '/'
 	    if not os.path.exists(facSavePath):
@@ -339,22 +392,22 @@ class Factors(object):
 	        # load 2017 data
 	        toYearPath = facSavePath + fileNameDic[toYear]
 	
-	        dataOldFacDF = cs.ItemArrToDFGet(toYearPath)
+	        dataOldFacDF = self.ItemArrToDF(toYearPath)
 	        oldDateEnd = dataOldFacDF.index[-1]
 	
-	        if oldDateEnd == dataDSArr[-1]:
+	        if oldDateEnd == self.dataDSArr[-1]:
 	            print 'already updated'
 	
 	        else:
 	            # calculate formula
-	            dataNewFacDF = dataOldFacDF.reindex(index=dataDSArr[toYearFirInd:])
-	            dataAddDSArr = dataDSArr[dataDSArr>oldDateEnd]
+	            dataNewFacDF = dataOldFacDF.reindex(index=self.dataDSArr[toYearFirInd:])
+	            dataAddDSArr = self.dataDSArr[self.dataDSArr>oldDateEnd]
 	            dataNewFacDF.loc[dataAddDSArr] = dataFacDF.loc[dataAddDSArr]
 	            dataNewFacArr = dataNewFacDF.values.astype(float)
 	            colNames = dataNewFacDF.columns.tolist()
 	
 	            dataDic = {'colNames': np.array(colNames, dtype=object),
-	                    'indDate': dataDSArr[toYearFirInd:].reshape(len(dataDSArr[toYearFirInd:]), 1),
+	                    'indDate': self.dataDSArr[toYearFirInd:].reshape(len(self.dataDSArr[toYearFirInd:]), 1),
 	                    facName: dataNewFacArr,
 	                    'arrKey': [facName, 'indDate', 'colInnerCode']}
 	            facSavePathName = facSavePath + facName + '_' + str(toYear) + '_arr.mat'
@@ -371,7 +424,7 @@ class Factors(object):
 	
 	        colNames = dataNewFacDF.columns.tolist()
 	        dataDic = {'colNames': np.array(colNames, dtype=object),
-	                    'indDate': dataDSArr[toYearFirInd:].reshape(len(dataDSArr[toYearFirInd:]), 1),
+	                    'indDate': self.dataDSArr[toYearFirInd:].reshape(len(self.dataDSArr[toYearFirInd:]), 1),
 	                    facName: dataNewFacArr,
 	                    'arrKey': [facName, 'indDate', 'colNames']}
 	        facSavePathName = facSavePath + facName + '_' + str(toYear) + '_arr.mat'
@@ -381,13 +434,13 @@ class Factors(object):
 	        if pastYear in fileYearLis:
 	            print 'update 2016 file'
 	            pastYearPath = facSavePath + fileNameDic[pastYear]
-	            dataPastOldFacDF = cs.ForArrToDFGet(pastYearPath)
+	            dataPastOldFacDF = self.FormArrToDF(pastYearPath)
 	            pastOldDateEnd = dataPastOldFacDF.index[-1]
 	            if pastOldDateEnd == pastYearLas:
 	                print 'do not need to update 2016 file'
 	            else:
-	                dataPastDSArr = dataDSArr[(dataDSArr>(pastYear*10000)) & (dataDSArr<(toYear*10000))]
-	                dataPastFacDF = dataPastOldFacDF.reindex(index=dataPastDSArr, columns=dataInnerCodeArr)
+	                dataPastDSArr = self.dataDSArr[(self.dataDSArr>(pastYear*10000)) & (dataDSArr<(toYear*10000))]
+	                dataPastFacDF = dataPastOldFacDF.reindex(index=dataPastDSArr, columns=self.dataInnerCodeArr)
 	                dataPastAddDSArr = dataPastDSArr[dataPastDSArr>pastOldDateEnd]
 	                dataPastFacDF.loc[dataPastAddDSArr] = dataFacDF.loc[pastOldDateEnd:pastYearLas]
 	                dataPastFacArr = dataPastFacDF.values.astype(float)
@@ -404,7 +457,7 @@ class Factors(object):
 	
 	            # create to 2016 file
 	            dataPastFacDF = dataFacDF.loc[:pastYearLas]
-	            dataPastDSArr = dataDSArr[dataDSArr<=pastYearLas]
+	            dataPastDSArr = self.dataDSArr[self.dataDSArr<=pastYearLas]
 	            dataPastFacArr = dataPastFacDF.values.astype(float)
 	            pastDataDic = {'colNames': np.array(colNames, dtype=object),
 	                           'indDate': dataPastDSArr.reshape(len(dataPastDSArr), 1),
@@ -416,11 +469,9 @@ class Factors(object):
 	
 	    return None
 
+    # ----------------------------------------------------------------------
+    # 5. daily quote
 
-    '''
-    5. daily quote 
-
-    '''
     def DailyQuoteGet(self, item):
     
         itemsAllLis = [u'ID',
@@ -470,11 +521,11 @@ class Factors(object):
             for ifileName in fileYearLis[:-1]:
                 ifilePath = pathQTDaily + fileNameDic[ifileName]
                 print ifileName
-                dataPastRaw = cs.SheetToDFGet(ifilePath)
+                dataPastRaw = self.SheetToDF(ifilePath)
                 dataPastCol = [u'TradingDay', u'InnerCode', item]
     
                 dataPastDFTol = dataPastRaw[dataPastCol]
-                dataPastDFUse = dataPastDFTol[dataPastDFTol[u'InnerCode'].isin(dataInnerCodeArr)]
+                dataPastDFUse = dataPastDFTol[dataPastDFTol[u'InnerCode'].isin(self.dataInnerCodeArr)]
     
                 dataPastDFUseSort = dataPastDFUse.sort_values(by=u'TradingDay')
                 dataPastDFUseSort.set_index([u'TradingDay', u'InnerCode'], inplace=True)
@@ -489,10 +540,10 @@ class Factors(object):
             dataPastItemAllUse = dataPastItemAllSortDF[~dataPastItemAllSortDF.index.duplicated()]
     
             pastYear = int(dataPastItemAllUse.index[-1]) / 10000
-            dataPastDSUseArr = dataDSArr[dataDSArr<(pastYear+1)*10000]  # date series used
+            dataPastDSUseArr = self.dataDSArr[self.dataDSArr<(pastYear+1)*10000]  # date series used
     
             dataPastItemAllUseDF = dataPastItemAllUse.loc[dataPastDSUseArr]
-            dataPastInnerCodeUseArr = [code for code in dataInnerCodeArr if code in dataPastItemAllUseDF.columns]  # inner code used
+            dataPastInnerCodeUseArr = [code for code in self.dataInnerCodeArr if code in dataPastItemAllUseDF.columns]  # inner code used
     
             dataPastItemAllUseDF = dataPastItemAllUseDF.reindex(columns = dataPastInnerCodeUseArr)
             dataPastItemAllUseArr = dataPastItemAllUseDF.values.astype(float)
@@ -509,7 +560,7 @@ class Factors(object):
     
         dataCol = [u'TradingDay', u'InnerCode', item]
         filePath = pathQTDaily + fileNameDic[fileYearLis[-1]]
-        dataRaw = cs.SheetToDFGet(filePath)
+        dataRaw = self.SheetToDF(filePath)
         toYear = int(dataRaw[u'TradingDay'].iloc[0]) / 10000
         print toYear
     
@@ -521,14 +572,14 @@ class Factors(object):
         dataItemAllSortDF = dataDF.sort_index()
         dataItemAllUse = dataItemAllSortDF[~dataItemAllSortDF.index.duplicated()]
     
-        dataDSUseArr = dataDSArr[dataDSArr>(toYear*10000)]  # date series used
+        dataDSUseArr = self.dataDSArr[self.dataDSArr>(toYear*10000)]  # date series used
         dataItemAllUseDF = dataItemAllUse.loc[dataDSUseArr]   #
     
-        dataItemAllUseDF = dataItemAllUseDF.reindex(columns = dataInnerCodeArr)
+        dataItemAllUseDF = dataItemAllUseDF.reindex(columns = self.dataInnerCodeArr)
         dataItemAllUseArr = dataItemAllUseDF.values.astype(float)
     
     
-        dataDic = {'colInnerCode': dataInnerCodeArr, \
+        dataDic = {'colInnerCode': self.dataInnerCodeArr, \
                    'indDate': dataDSUseArr.reshape(len(dataDSUseArr), 1), \
                    item: dataItemAllUseArr,
                    'arrKey': [item, 'indDate', 'colInnerCode']}
@@ -538,7 +589,7 @@ class Factors(object):
     
         if (len(saveFileYearLis) >= 2) & (toYear == (saveFileYearLis[-1] + 1)):
             filePath = pathQTDaily + fileNameDic[fileYearLis[-2]]
-            dataRaw = cs.SheetToDFGet(filePath)
+            dataRaw = self.SheetToDF(filePath)
             pastYear = int(saveFileYearLis[-1])
     
             dataDFUse = dataRaw[dataCol]
@@ -549,14 +600,14 @@ class Factors(object):
             dataItemAllSortDF = dataDF.sort_index()
             dataItemAllUse = dataItemAllSortDF[~dataItemAllSortDF.index.duplicated()]
     
-            dataDSUseArr = dataDSArr[(dataDSArr>(pastYear*10000)) * (dataDSArr<(toYear*10000))]  # date series used
+            dataDSUseArr = self.dataDSArr[(self.dataDSArr>(pastYear*10000)) * (dataDSArr<(toYear*10000))]  # date series used
             dataItemAllUseDF = dataItemAllUse.loc[dataDSUseArr]   #
     
-            dataItemAllUseDF = dataItemAllUseDF.reindex(columns = dataInnerCodeArr)
+            dataItemAllUseDF = dataItemAllUseDF.reindex(columns = self.dataInnerCodeArr)
             dataItemAllUseArr = dataItemAllUseDF.values.astype(float)
     
     
-            dataDic = {'colInnerCode': dataInnerCodeArr, \
+            dataDic = {'colInnerCode': self.dataInnerCodeArr, \
                        'indDate': dataDSUseArr.reshape(len(dataDSUseArr), 1), \
                        item: dataItemAllUseArr,
                        'arrKey': [item, 'indDate', 'colInnerCode']}
@@ -570,7 +621,7 @@ class Factors(object):
     
     
     def RAFactorGet(self):
-        '''RatioAdjusting Factors'''
+        """RatioAdjusting Factors"""
         # every time calculate all date
         pathRAFactor = '/data/liushuanglong/MyFiles/Data/JYDB2/QT_AdjustingFactor/QT_AdjustingFactor.mat'
     
@@ -578,31 +629,31 @@ class Factors(object):
         if not os.path.exists(itmeSavePath):
             os.mkdir(itmeSavePath)
     
-        dataRADF = cs.SheetToDFGet(pathRAFactor)
+        dataRADF = self.SheetToDF(pathRAFactor)
         dataCol = [u'ExDiviDate', u'RatioAdjustingFactor', u'InnerCode']
         dataDFTol = dataRADF[dataCol]
     
         # transpose and fillna
-        dataDFUse = dataDFTol[dataDFTol[u'InnerCode'].isin(dataInnerCodeArr)]
+        dataDFUse = dataDFTol[dataDFTol[u'InnerCode'].isin(self.dataInnerCodeArr)]
         dataDFUseSort = dataDFUse.sort_values(by=[u'ExDiviDate', u'InnerCode'])
         dataDFUseSta = dataDFUseSort.set_index([u'ExDiviDate', u'InnerCode'])[u'RatioAdjustingFactor'].unstack()
         dataDFUseFil = dataDFUseSta.fillna(method='ffill')
         dataDFUseFilTol = dataDFUseFil.fillna(1.)
     
         # total time fillna\
-        dataUseTolTime = dataDFUseFilTol.loc[dataDSArr]      # this way may be good~
+        dataUseTolTime = dataDFUseFilTol.loc[self.dataDSArr]      # this way may be good~
         dataUseTolTimeFil = dataUseTolTime.fillna(method='ffill')
         dataUseTolTimeFil = dataUseTolTimeFil.fillna(1.)
     
         # total InnerCode fillna
-        dataUseTolFil = dataUseTolTimeFil.reindex(columns=dataInnerCodeArr, fill_value=1.)
+        dataUseTolFil = dataUseTolTimeFil.reindex(columns=self.dataInnerCodeArr, fill_value=1.)
     
         # calculate adjusting factors
         dataAdFactors = dataUseTolFil / dataUseTolFil.iloc[-1]
     
         # save data
-        dataDic = {'colInnerCode': dataInnerCodeArr, \
-                   'indDate': dataDSArr.reshape(len(dataDSArr), 1), \
+        dataDic = {'colInnerCode': self.dataInnerCodeArr, \
+                   'indDate': self.dataDSArr.reshape(len(self.dataDSArr), 1), \
                    'RatioAdjustingFactor': dataAdFactors.values.astype(float),\
                    'arrKey': ['RatioAdjustingFactor', 'indDate', 'colInnerCode']}
         sio.savemat(itmeSavePath + 'RatioAdjustingFactor_arr.mat', dataDic)
@@ -630,15 +681,15 @@ class Factors(object):
             tempDF = pd.DataFrame(tempDic[arrKey[0]], index=tempDic[arrKey[1]][:, 0], columns=tempDic[arrKey[2]][0])
             dfLis = dfLis + [tempDF]
     
-        dataCloseAllDF = pd.concat(dfLis).reindex(index=dataDSArr, columns=dataInnerCodeArr)
+        dataCloseAllDF = pd.concat(dfLis).reindex(index=self.dataDSArr, columns=self.dataInnerCodeArr)
         dataCloseAllArr = dataCloseAllDF.values.astype(float)
         dataRAFactorDic = sio.loadmat('/data/liushuanglong/MyFiles/Data/Factors/HLZ/DailyQuote/RatioAdjustingFactor/RatioAdjustingFactor_arr.mat')
         arrKey = dataRAFactorDic['arrKey']
         dataRAFactorDF = dataRAFactorDic[arrKey[0]]
     
         dataAdjCloseArr = dataCloseAllArr * dataRAFactorDF.values.astype(float)
-        dataDic = {'colInnerCode': dataInnerCodeArr,
-                   'indDate': dataDSArr.reshape(len(dataDSArr), 1),
+        dataDic = {'colInnerCode': self.dataInnerCodeArr,
+                   'indDate': self.dataDSArr.reshape(len(self.dataDSArr), 1),
                     facName: dataAdjCloseArr,
                     'arrKey': [facName, 'indDate', 'colInnerCode']}
         itemSaveName = itemSavePath + facName + '_arr.mat'
@@ -648,7 +699,7 @@ class Factors(object):
     
     
     def StoReturnGet(self):
-        '''all depend on adjusted close price'''
+        """all depend on adjusted close price"""
     
         facName = 'StoRet'
         print facName
@@ -691,7 +742,7 @@ class Factors(object):
             print 'update 2017 data'
             # load 2017 data
             toYearPath = facSavePath + fileNameDic[toYear]
-            dataOldStoRetDF = cs.ForArrToDFGet(toYearPath)
+            dataOldStoRetDF = self.FormArrToDF(toYearPath)
             oldDateEnd = dataOldStoRetDF.index[-1]
     
             if oldDateEnd == dataDSAllArr[-1]:
@@ -739,7 +790,7 @@ class Factors(object):
             if pastYear in fileYearLis:
                 print 'update 2016 file'
                 pastYearPath = facSavePath + fileNameDic[pastYear]
-                dataPastOldStoRetDF = cs.ForArrToDFGet(pastYearPath)
+                dataPastOldStoRetDF = self.FormArrToDF(pastYearPath)
                 pastOldDateEnd = dataPastOldStoRetDF.index[-1]
                 if pastOldDateEnd == pastYearLas:
                     print 'do not need to update 2016 file'
@@ -822,11 +873,9 @@ class Factors(object):
         return None
 
 
+    # ----------------------------------------------------------------------
+    # 6. index quote
 
-    '''
-    6. index quote 
-
-    '''
 	def IndexQuoteGet(self, mar='HS300', facName='ClosePrice', items=[u'PrevClosePrice', u'ClosePrice']):
 	
 		itemsLis = [u'TradingDay',
@@ -842,7 +891,7 @@ class Factors(object):
 		             u'TurnoverDeals',
 		             u'TurnoverValue',
 		             u'TurnoverVolume']
-	    '''save file'''
+	    """save file"""
 	    pathQTDaily = '/data/liushuanglong/MyFiles/Data/JYDB2/QT_IndexQuote/'
 	    savePathMain = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/IndexQuote/'
 	    indexSavePath = savePathMain + mar + '/'
@@ -859,7 +908,7 @@ class Factors(object):
 	    codeDic={'HS300': 3145, 'ZZ800': 4982}
 	    for ifileName in fileLis:
 	        ifilePath = pathQTDaily + ifileName
-	        dataRaw = cs.SheetToDFGet(ifilePath)
+	        dataRaw = self.SheetToDF(ifilePath)
 	        dataCol = [u'TradingDay', u'InnerCode'] + items
 	        dataDFTol = dataRaw[dataCol]
 	
@@ -876,7 +925,7 @@ class Factors(object):
 	
 	    dataItemAllUse = dataItemAllSortDF[~dataItemAllSortDF.index.duplicated()]
 	
-	    dataItemAllUseDF = dataItemAllUse.loc[dataDSArr]   #
+	    dataItemAllUseDF = dataItemAllUse.loc[self.dataDSArr]   #
 	    cu.UpdateItemDataGet(dataItemAllUseDF,  facSavePath, facName)   
 	
 	    return None
@@ -892,7 +941,7 @@ class Factors(object):
 	    if not os.path.exists(savePath):
 	        os.mkdir(savePath)
 	
-	    indexDataDF = cs.ItemAllArrToDFGet(closePath)
+	    indexDataDF = self.AllItemArrToDF(closePath)
 	    IndexLogReturnDF = pd.DataFrame(index=indexDataDF.index, columns=[facName])
 	    IndexLogReturnDF.iloc[:, 0] = np.log(indexDataDF[u'ClosePrice']) - np.log(indexDataDF[u'PrevClosePrice'])
 	#    if Free:
@@ -905,7 +954,7 @@ class Factors(object):
 	
 	
 	def BondReturnGet(self):
-	    '''from wind 10 years bond '''
+	    """from wind 10 years bond """
 	    savePathMain = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/IndexQuote/'
 	    facName = 'BondReturn'
 	    facSavePath = savePathMain + facName + '/'
@@ -913,13 +962,13 @@ class Factors(object):
 	    if not os.path.exists(facSavePath):
 	        os.mkdir(facSavePath)
 	
-	    path = '/data/liushuanglong/MyFiles/Data/Common/bond_10y.mat'
-	    dataRawDF = cs.SheetToDFGet(path)
+	    path = self.dataComDir + 'bond_10y.mat'
+	    dataRawDF = self.SheetToDF(path)
 	    dataDF = dataRawDF.set_index('date')
-	    dataDSArr = tc.dateSerArrGet()[:, 0]
-	    dataDF = dataDF.reindex(dataDSArr)
+	    self.dataDSArr = tc.dateSerArrGet()[:, 0]
+	    dataDF = dataDF.reindex(self.dataDSArr)
 	    dataPrice = dataDF.values.astype(float)
-	    dataReturn = pd.DataFrame(index=dataDSArr, columns=['Return'])
+	    dataReturn = pd.DataFrame(index=self.dataDSArr, columns=['Return'])
 	    dataReturn.iloc[1:] = np.log(dataPrice[1:]) - np.log(dataPrice[:-1])  # log return
 	
 	    cu.UpdateItemDataGet(dataReturn, facSavePath, facName)
@@ -927,7 +976,7 @@ class Factors(object):
 
 
     def IndexQuote(self):
-        '''get index quote data'''
+        """get index quote data"""
 
         # HS300 Index Close
         iq.IndexQuoteGet(mar='HS300', facName='ClosePrice', items=[u'PrevClosePrice', u'ClosePrice'])
@@ -945,12 +994,8 @@ class Factors(object):
         pass
         return None
 
-
-
-    '''
-    7. factor common fundamental data  
-
-    '''
+    # ----------------------------------------------------------------------
+    # 7. factor common fundamental data
 
     def AFloatsGet(self):
     
@@ -958,13 +1003,13 @@ class Factors(object):
         facName = 'AFloats'
         # load income statement new data
         pathST = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_ShareStru/sharestru.mat'
-        dataRaw = cs.SheetToDFGet(pathST)
+        dataRaw = self.SheetToDF(pathST)
         dataColUseLis = [u'CompanyCode', u'EndDate', facName]   #use enddate
         dataValuesTolArr = dataRaw[dataColUseLis]
     
         # dataframe, select by company code and mark
         dataValuesTolDF = pd.DataFrame(dataValuesTolArr, columns=dataColUseLis)
-        dataValuesTolDF = dataValuesTolDF[dataValuesTolDF[u'CompanyCode'].isin(dataComCodeArr)]
+        dataValuesTolDF = dataValuesTolDF[dataValuesTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]
     
         # sort by company code, end date, mark
         dataValuesUseDFSor = dataValuesTolDF.sort_values(by=[u'CompanyCode',u'EndDate'])
@@ -980,13 +1025,13 @@ class Factors(object):
             dataValuesDic[code] = dataValuesUseDFInd.loc[code]
     
         # create a dic contain all effective date
-        dataFacDF = pd.DataFrame(index=dataDSArr, columns=dataComCodeArr)
+        dataFacDF = pd.DataFrame(index=self.dataDSArr, columns=self.dataComCodeArr)
         for iicode, code in enumerate(dataComCodeUse):
             dataOneCodeTolDF = dataValuesDic[code]
             dataOneCodeTolDF[u'EndDate'] = dataOneCodeTolDF.index
             dataOneCodeTSRaw = dataOneCodeTolDF.index.tolist()
-            dataOneCodeTSTol = sorted(set(dataDSArr) | set(dataOneCodeTSRaw))
-            dataOneCodeUseDF = dataOneCodeTolDF.reindex(dataOneCodeTSTol, method='ffill').loc[dataDSArr]
+            dataOneCodeTSTol = sorted(set(self.dataDSArr) | set(dataOneCodeTSRaw))
+            dataOneCodeUseDF = dataOneCodeTolDF.reindex(dataOneCodeTSTol, method='ffill').loc[self.dataDSArr]
             if dataOneCodeUseDF.size==0:
                 continue
             dataFacDF[code] = dataOneCodeUseDF[facName]
@@ -995,16 +1040,16 @@ class Factors(object):
         print facName, 'dic got', time.strftime("%H:%M:%S", time.localtime())
     
         # convert to innercode
-        dataFacDF.columns = dataInnerCodeArr
+        dataFacDF.columns = self.dataInnerCodeArr
     
         # year used
-        toYear = int(dataDSArr[-1])/10000
-        toYearFirInd = np.where(dataDSArr > toYear*10000)[0][0]
-        toYearFir = dataDSArr[toYearFirInd]
+        toYear = int(self.dataDSArr[-1])/10000
+        toYearFirInd = np.where(self.dataDSArr > toYear*10000)[0][0]
+        toYearFir = self.dataDSArr[toYearFirInd]
     
         pastYear = toYear - 1
         pastYearLasInd = toYearFirInd - 1
-        pastYearLas = dataDSArr[pastYearLasInd]
+        pastYearLas = self.dataDSArr[pastYearLasInd]
         # save folder
         facSavePath = savePath + facName + '/'
         if not os.path.exists(facSavePath):
@@ -1025,20 +1070,20 @@ class Factors(object):
             print 'update 2017 data'
             # load 2017 data
             toYearPath = facSavePath + fileNameDic[toYear]
-            dataOldFacDF = cs.ForArrToDFGet(toYearPath)
+            dataOldFacDF = self.FormArrToDF(toYearPath)
             oldDateEnd = dataOldFacDF.index[-1]
     
-            if oldDateEnd == dataDSArr[-1]:
+            if oldDateEnd == self.dataDSArr[-1]:
                 print 'already updated'
     
             else:
                 # calculate formula
-                dataNewFacDF = dataOldFacDF.reindex(index=dataDSArr[toYearFirInd:], columns=dataInnerCodeArr)
-                dataAddDSArr = dataDSArr[dataDSArr>oldDateEnd]
+                dataNewFacDF = dataOldFacDF.reindex(index=self.dataDSArr[toYearFirInd:], columns=self.dataInnerCodeArr)
+                dataAddDSArr = self.dataDSArr[self.dataDSArr>oldDateEnd]
                 dataNewFacDF.loc[dataAddDSArr] = dataFacDF.loc[dataAddDSArr]
                 dataNewFacArr = dataNewFacDF.values.astype(float)
-                dataDic = {'colInnerCode': dataInnerCodeArr,  # depend on adj close innercode
-                        'indDate': dataDSArr[toYearFirInd:].reshape(len(dataDSArr[toYearFirInd:]), 1), # depend on adj close date
+                dataDic = {'colInnerCode': self.dataInnerCodeArr,  # depend on adj close innercode
+                        'indDate': self.dataDSArr[toYearFirInd:].reshape(len(self.dataDSArr[toYearFirInd:]), 1), # depend on adj close date
                         facName: dataNewFacArr,
                         'arrKey': [facName, 'indDate', 'colInnerCode']} 
                 facSavePathName = facSavePath + facName + '_' + str(toYear) + '_arr.mat'
@@ -1052,8 +1097,8 @@ class Factors(object):
     
             dataNewFacDF = dataFacDF.loc[toYearFir:]
             dataNewFacArr = dataNewFacDF.values.astype(float)
-            dataDic = {'colInnerCode': dataInnerCodeArr,  # depend on adj close innercode
-                        'indDate': dataDSArr[toYearFirInd:].reshape(len(dataDSArr[toYearFirInd:]), 1), # depend on adj close date
+            dataDic = {'colInnerCode': self.dataInnerCodeArr,  # depend on adj close innercode
+                        'indDate': self.dataDSArr[toYearFirInd:].reshape(len(self.dataDSArr[toYearFirInd:]), 1), # depend on adj close date
                         facName: dataNewFacArr,
                         'arrKey': [facName, 'indDate', 'colInnerCode']} 
             facSavePathName = facSavePath + facName + '_' + str(toYear) + '_arr.mat'
@@ -1063,17 +1108,17 @@ class Factors(object):
             if pastYear in fileYearLis:
                 print 'update 2016 file'
                 pastYearPath = facSavePath + fileNameDic[pastYear]
-                dataPastOldFacDF = cs.ForArrToDFGet(pastYearPath)
+                dataPastOldFacDF = self.FormArrToDF(pastYearPath)
                 pastOldDateEnd = dataPastOldFacDF.index[-1]
                 if pastOldDateEnd == pastYearLas:
                     print 'do not need to update 2016 file'
                 else:
-                    dataPastDSArr = dataDSArr[(dataDSArr>(pastYear*10000)) & (dataDSArr<(toYear*10000))]
-                    dataPastFacDF = dataPastOldFacDF.reindex(index=dataPastDSArr, columns=dataInnerCodeArr)
+                    dataPastDSArr = self.dataDSArr[(self.dataDSArr>(pastYear*10000)) & (dataDSArr<(toYear*10000))]
+                    dataPastFacDF = dataPastOldFacDF.reindex(index=dataPastDSArr, columns=self.dataInnerCodeArr)
                     dataPastAddDSArr = dataPastDSArr[dataPastDSArr>pastOldDateEnd]
                     dataPastFacDF.loc[dataPastAddDSArr] = dataFacDF.loc[pastOldDateEnd:pastYearLas]
                     dataPastFacArr = dataPastFacDF.values.astype(float)
-                    pastDataDic = {'colInnerCode': dataInnerCodeArr,  # depend on adj close innercode
+                    pastDataDic = {'colInnerCode': self.dataInnerCodeArr,  # depend on adj close innercode
                             'indDate': dataPastDSArr.reshape(len(dataPastDSArr), 1), # depend on adj close date
                             facName: dataPastFacArr,
                             'arrKey': [facName, 'indDate', 'colInnerCode']}
@@ -1086,7 +1131,7 @@ class Factors(object):
     
                 # create to 2016 file
                 dataPastFacDF = dataFacDF.loc[:pastYearLas].dropna(axis=1, how='all')
-                dataPastDSArr = dataDSArr[dataDSArr<=pastYearLas]
+                dataPastDSArr = self.dataDSArr[self.dataDSArr<=pastYearLas]
                 dataPastFacArr = dataPastFacDF.values.astype(float)
                 pastDataDic = {'colInnerCode': dataPastFacDF.columns.tolist(),
                                'indDate': dataPastDSArr.reshape(len(dataPastDSArr), 1),
@@ -1098,12 +1143,8 @@ class Factors(object):
     
         return None
 
-
-
-    '''
-    8. factor common methods 
-
-    '''
+    # ----------------------------------------------------------------------
+    # 8. factor common methods
 
     def FactorFMReturnGet(dataLoadDic, savePath='', facName='Factor', pool='A'):
     
@@ -1122,23 +1163,23 @@ class Factors(object):
         dataLoadDF = dataLoadDF.sort_index()
     
         # convert company code to innercode !
-        dataAllDF = dataLoadDF.reindex(columns=dataComCodeArr)
-        dataAllDF.columns = dataInnerCodeArr
+        dataAllDF = dataLoadDF.reindex(columns=self.dataComCodeArr)
+        dataAllDF.columns = self.dataInnerCodeArr
         dataFactorYearUseDF = dataAllDF.dropna(how='all')
     
         ## load stoct daily returns
         pathStoLogRet = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/DailyQuote/StoRet/'
-        dataStoRetArr = cs.AllArrToDFGet(pathStoLogRet).values.astype(float)
+        dataStoRetArr = self.AllFormArrToDF(pathStoLogRet).values.astype(float)
     
         ## load stock daily volumne
         pathVol = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/DailyQuote/TurnoverVolume/'
-        dataVolArr = cs.AllArrToDFGet(pathVol).values.astype(float)  # columns: inner code
+        dataVolArr = self.AllFormArrToDF(pathVol).values.astype(float)  # columns: inner code
     
         ## load stock AFloats
         pathAF = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/CompanyFundamentalFactors/AFloats/'
-        dataAFloatsArr = cs.AllArrToDFGet(pathAF).values.astype(float)
+        dataAFloatsArr = self.AllFormArrToDF(pathAF).values.astype(float)
     
-        dataInnerCodeUseArr = dataInnerCodeArr  # seems not useless, just a mark
+        dataInnerCodeUseArr = self.dataInnerCodeArr  # seems not useless, just a mark
         dataYearUseLis = dataFactorYearUseDF.index.tolist()       # 27
     
     
@@ -1166,7 +1207,7 @@ class Factors(object):
             dataVolArr = dataVolArr * dataHS300IndexArr
             dataAFloatsArr = dataAFloatsArr * dataHS300IndexArr
     
-    #        dataInnerCodeUseArr = dataInnerCodeArr[select]
+    #        dataInnerCodeUseArr = self.dataInnerCodeArr[select]
         #==============================================================================
         # 2. seperate 3 groups
         #==============================================================================
@@ -1199,15 +1240,15 @@ class Factors(object):
     
         ## calculate grouped Factor daily return
     
-        dataVolUseArr = np.zeros((len(dataDSArr), len(dataInnerCodeUseArr)))
-        dataReturnUseArr = np.zeros((len(dataDSArr), len(dataInnerCodeUseArr)))
-        dataAFloatsUseArr = np.zeros((len(dataDSArr), len(dataInnerCodeUseArr)))
+        dataVolUseArr = np.zeros((len(self.dataDSArr), len(dataInnerCodeUseArr)))
+        dataReturnUseArr = np.zeros((len(self.dataDSArr), len(dataInnerCodeUseArr)))
+        dataAFloatsUseArr = np.zeros((len(self.dataDSArr), len(dataInnerCodeUseArr)))
         dataReturnUseArr[:] = np.nan
         dataVolUseArr[:] = np.nan
         dataAFloatsUseArr[:] = np.nan
     
         #bool1Arr = np.where((~np.isnan(dataVolArr[1])) & (dataVolArr[1]!=0))
-        for i in range(len(dataDSArr)):
+        for i in range(len(self.dataDSArr)):
             posUseArr = np.where((~np.isnan(dataVolArr[i])) & (dataVolArr[i]!=0))[0]
             if len(posUseArr) == 0:
                 continue
@@ -1215,18 +1256,18 @@ class Factors(object):
             dataReturnUseArr[i][posUseArr] = dataStoRetArr[i][posUseArr]
             dataAFloatsUseArr[i][posUseArr] = dataAFloatsArr[i][posUseArr]
     
-        dataReturnDF = pd.DataFrame(dataReturnUseArr, index=dataDSArr, columns=dataInnerCodeUseArr)
-        dataAFloatsDF = pd.DataFrame(dataAFloatsUseArr, index=dataDSArr, columns=dataInnerCodeUseArr)
+        dataReturnDF = pd.DataFrame(dataReturnUseArr, index=self.dataDSArr, columns=dataInnerCodeUseArr)
+        dataAFloatsDF = pd.DataFrame(dataAFloatsUseArr, index=self.dataDSArr, columns=dataInnerCodeUseArr)
     
         # three groups return
-        dataFactorReturnDF = pd.DataFrame([], index=dataDSArr, columns=['low', 'median', 'high', 'HML'])
+        dataFactorReturnDF = pd.DataFrame([], index=self.dataDSArr, columns=['low', 'median', 'high', 'HML'])
         counts = 0
     
         print 'start divide group', time.strftime("%H:%M:%S", time.localtime())
         print 'date'
         for year in yearGroupLis:
             groupTemLis = [threeGroupsDic[i][year] for i in ['low', 'median', 'high']]
-            for date in dataDSArr[(dataDSArr>(year*10000+430)) & (dataDSArr<((year+1)*10000+501))]:
+            for date in self.dataDSArr[(self.dataDSArr>(year*10000+430)) & (self.dataDSArr<((year+1)*10000+501))]:
                 for i, group in enumerate(groupTemLis):
                     dataOGTemDF = pd.DataFrame(index=group, columns=['return', 'aFloats', 'weight', 'wReturn'])
                     dataOGTemDF['return'] = dataReturnDF.loc[date][group]
@@ -1246,26 +1287,26 @@ class Factors(object):
     
     def FactorFMExposureGet(facReturnPath, facName, pool, regDays=250, per=0.2, index=3):
     #    facReturnPath=ROEReturnFolderPath; facName=facName; pool='A'; regDays=250; per=0.2; index=3
-        '''
+        """
         #==============================================================================
         # dataFactorReturnArr is based on the result of function FactorFMReturnGet() dataFactorReturnDF
         #==============================================================================
-        '''
+        """
     #    facReturnPath = ROEHS30ReturnPath
         returnPath = facReturnPath.rstrip('/')
         facPath = os.path.split(returnPath)[0] + '/'
         facName = facName + '_FMExposure' + '_' + pool
     
     #    facName=factName
-        dataFactorReturnArr = cs.ItemAllArrToDFGet(facReturnPath).values.astype(float)[:, index]
+        dataFactorReturnArr = self.AllItemArrToDF(facReturnPath).values.astype(float)[:, index]
         # load stock return
         ## load stoct daily returns
         pathStoLogRet = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/DailyQuote/StoRet/'
-        dataStoRetArr = cs.AllArrToDFGet(pathStoLogRet).values.astype(float)
+        dataStoRetArr = self.AllFormArrToDF(pathStoLogRet).values.astype(float)
         # load free returns
     
         pathFreeRet = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/IndexQuote/BondReturn/'
-        dataFreeRetArr = cs.AllArrToDFGet(pathFreeRet).values.astype(float)
+        dataFreeRetArr = self.AllFormArrToDF(pathFreeRet).values.astype(float)
     
         # stock free return !
         dataStoFreeRetArr = dataStoRetArr - dataFreeRetArr
@@ -1282,18 +1323,18 @@ class Factors(object):
     
         dataFactorReturnArr = sm.add_constant(dataFactorReturnArr)
     
-        for d in range(startInd, len(dataDSArr)):
+        for d in range(startInd, len(self.dataDSArr)):
     
             YTemp = dataStoFreeRetArr[(d-regDays+1):(d+1)]
             XTemp = dataFactorReturnArr[(d-regDays+1):(d+1)]
-            for s in range(len(dataInnerCodeArr)):
+            for s in range(len(self.dataInnerCodeArr)):
                 useIndArr = np.where(~np.isnan(YTemp[:, s]))[0]
                 if len(useIndArr) > (regDays * per):   #
                     result = sm.OLS(YTemp[useIndArr, s], XTemp[useIndArr]).fit()
                     dataFactorExpArr[d, s] = result.params[1]
             if d%100 == 0:
-                print dataDSArr[d], time.strftime("%H:%M:%S", time.localtime())
-        dataFactorExpDF = pd.DataFrame(dataFactorExpArr, index=dataDSArr, columns=dataInnerCodeArr)
+                print self.dataDSArr[d], time.strftime("%H:%M:%S", time.localtime())
+        dataFactorExpDF = pd.DataFrame(dataFactorExpArr, index=self.dataDSArr, columns=self.dataInnerCodeArr)
         cu.UpdateFormDataGet(dataFactorExpDF, facPath, facName)
     
         return
@@ -1304,21 +1345,21 @@ class Factors(object):
     def FactorBarraReturnGet(loadDF, facPath, facName='Factor', pool='A', index=0):
     
     
-        '''
+        """
         load dataDic as follows:
         arrName = facName + 'Values_Three3DArray'
         dataDic = {'axis1Names_Items': np.array(itemsLis, dtype=object),
-                   'axis2Names_DateSeries': dataDSArr.reshape(len(dataDSArr), 1),\
-                   'axis3Names_ComCode': dataComCodeArr,\
+                   'axis2Names_DateSeries': self.dataDSArr.reshape(len(self.dataDSArr), 1),\
+                   'axis3Names_ComCode': self.dataComCodeArr,\
                    arrName: data3DArr, \
                    'arrKey': [arrName, 'axis1Names_Items', 'axis2Names_DateSeries', 'axis3Names_ComCode']}
-        '''
+        """
     
         facName = facName + '_BarraReturn_' +  pool
     
         # load stock log return
         pathStoLogRet = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/DailyQuote/StoRet/'
-        dataStoRetArr = cs.AllArrToDFGet(pathStoLogRet).values.astype(float)
+        dataStoRetArr = self.AllFormArrToDF(pathStoLogRet).values.astype(float)
     
         # load Factor values
         dataFactorValues = loadDF.values.astype(float)
@@ -1368,8 +1409,8 @@ class Factors(object):
                 result = sm.OLS(Yuse, X).fit()
                 dataFactorOLSReturn[i, 0] = result.params[1]
                 if i%1000 == 0:
-                    print dataDSArr[i]
-        dataBarraRetDF = pd.DataFrame(dataFactorOLSReturn, index=dataDSArr, columns=[facName])
+                    print self.dataDSArr[i]
+        dataBarraRetDF = pd.DataFrame(dataFactorOLSReturn, index=self.dataDSArr, columns=[facName])
         cu.UpdateItemDataGet(dataBarraRetDF, facPath, facName)          
     
         return dataFactorOLSReturn
@@ -1380,7 +1421,7 @@ class Factors(object):
         itemsLis = dataRawDic[comCodeLis[0]].columns.tolist()  # item order !
         dataFormatDic = {}
         for iitem in itemsLis:
-            dataFormatDic[iitem] = pd.DataFrame(index=dataDSArr, columns=dataComCodeArr)
+            dataFormatDic[iitem] = pd.DataFrame(index=self.dataDSArr, columns=self.dataComCodeArr)
     
     
         print 'start convert to 3D form array: ',
@@ -1390,18 +1431,18 @@ class Factors(object):
             if dataRawDic[icode].size==0:
                 continue
             pubDateLis = dataRawDic[icode].index.tolist()
-            pubDateLis.extend(list(dataDSArr))
+            pubDateLis.extend(list(self.dataDSArr))
             allDateArr = np.unique(pubDateLis)
             # famative date process
             icodeDF = dataRawDic[icode].reindex(index=allDateArr, method='ffill')
-            icodeDefDF = icodeDF.loc[dataDSArr]
+            icodeDefDF = icodeDF.loc[self.dataDSArr]
             for iitem in icodeDefDF.columns:
                 dataFormatDic[iitem][icode] = icodeDefDF[iitem]
     
             if iicode%100 == 0:
                 print iicode, icode
     
-        data3DArr = np.zeros((len(itemsLis), len(dataDSArr), len(dataComCodeArr)))
+        data3DArr = np.zeros((len(itemsLis), len(self.dataDSArr), len(self.dataComCodeArr)))
         data3DArr[:] = np.nan
         for iiitem, iitem in enumerate(itemsLis):
             arrTemp = dataFormatDic[iitem].values.astype(float)
@@ -1409,8 +1450,8 @@ class Factors(object):
     
         arrName = facName + '_3DValues'
         dataDic = {'axis1Names_Items': np.array(itemsLis, dtype=object),
-                   'axis2Names_DateSeries': dataDSArr.reshape(len(dataDSArr), 1),\
-                   'axis3Names_ComCode': dataComCodeArr,\
+                   'axis2Names_DateSeries': self.dataDSArr.reshape(len(self.dataDSArr), 1),\
+                   'axis3Names_ComCode': self.dataComCodeArr,\
                    arrName: data3DArr,
                    'arrKey': [arrName, 'axis1Names_Items', 'axis2Names_DateSeries', 'axis3Names_ComCode']}
         return dataDic
@@ -1428,7 +1469,7 @@ class Factors(object):
         if dataFactorExpArr.ndim == 3 :
             dataFactorExpArr = dataFactorExpArr[arrDimIndex]
     
-        dataFactorExpDF = pd.DataFrame(dataFactorExpArr, index=dataDSArr, columns=dataInnerCodeArr)
+        dataFactorExpDF = pd.DataFrame(dataFactorExpArr, index=self.dataDSArr, columns=self.dataInnerCodeArr)
     
         ## load stoct daily returns
         pathStoLogRet = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/DailyQuote/DailyQuote_LogReturn_array.mat'
@@ -1462,15 +1503,15 @@ class Factors(object):
             dataVolArr = dataVolArr * dataHS300IndexArr
             dataAFloatsArr = dataAFloatsArr * dataHS300IndexArr
     
-        dataVolUseArr = np.zeros((len(dataDSArr), len(dataInnerCodeArr)))
-        dataReturnUseArr = np.zeros((len(dataDSArr), len(dataInnerCodeArr)))
-        dataAFloatsUseArr = np.zeros((len(dataDSArr), len(dataInnerCodeArr)))
+        dataVolUseArr = np.zeros((len(self.dataDSArr), len(self.dataInnerCodeArr)))
+        dataReturnUseArr = np.zeros((len(self.dataDSArr), len(self.dataInnerCodeArr)))
+        dataAFloatsUseArr = np.zeros((len(self.dataDSArr), len(self.dataInnerCodeArr)))
         dataReturnUseArr[:] = np.nan
         dataVolUseArr[:] = np.nan
         dataAFloatsUseArr[:] = np.nan
     
         #bool1Arr = np.where((~np.isnan(dataVolArr[1])) & (dataVolArr[1]!=0))
-        for i in range(len(dataDSArr)):
+        for i in range(len(self.dataDSArr)):
             posUseArr = np.where((~np.isnan(dataVolArr[i])) & (dataVolArr[i]!=0))[0]
             if len(posUseArr) == 0:
                 continue
@@ -1478,15 +1519,15 @@ class Factors(object):
             dataReturnUseArr[i][posUseArr] = dataStoRetArr[i][posUseArr]
             dataAFloatsUseArr[i][posUseArr] = dataAFloatsArr[i][posUseArr]
     
-        dataStoRetDF = pd.DataFrame(dataReturnUseArr, index=dataDSArr, columns=dataInnerCodeArr)
-        dataAFloatsDF = pd.DataFrame(dataAFloatsUseArr, index=dataDSArr, columns=dataInnerCodeArr)
+        dataStoRetDF = pd.DataFrame(dataReturnUseArr, index=self.dataDSArr, columns=self.dataInnerCodeArr)
+        dataAFloatsDF = pd.DataFrame(dataAFloatsUseArr, index=self.dataDSArr, columns=self.dataInnerCodeArr)
         #==============================================================================
         # 2. seperate groups and calculate groups returns
         #==============================================================================
         colNames = ['group'+str(i+1) for i in range(divGroNum)]
-        dataFacGroReturnDF = pd.DataFrame(index=dataDSArr, columns=colNames)
+        dataFacGroReturnDF = pd.DataFrame(index=self.dataDSArr, columns=colNames)
     
-        staInd = sf.nonNanFirIndGet(dataFactorExpArr)
+        staInd = self.nonNanFirInd(dataFactorExpArr)
     
         dataDSAllEffArr = tc.dateSerArrGet()[staInd:]
         monEndDateArr = dataDSAllEffArr[dataDSAllEffArr[:, 3]==1, 0]
@@ -1500,7 +1541,7 @@ class Factors(object):
                 perFactorExpArr[-1] = dataFactorMonUseTemp.max()
                 perFactorExpArr[0] = dataFactorMonUseTemp.min()
                 perFactorExpArr[1:-1] = dataFactorMonUseTemp.quantile(percentNumAllArr[1:-1]).values
-                dsTemp = dataDSArr[(dataDSArr>monEndDateArr[iimonendDate]) & (dataDSArr<=monEndDateArr[iimonendDate+1])]
+                dsTemp = self.dataDSArr[(self.dataDSArr>monEndDateArr[iimonendDate]) & (self.dataDSArr<=monEndDateArr[iimonendDate+1])]
     #            print dsTemp
                 for iigro in range(divGroNum):
                     igroupLis = dataFactorMonUseTemp[(dataFactorMonUseTemp>perFactorExpArr[iigro])\
@@ -1516,7 +1557,7 @@ class Factors(object):
         dataFacGroReturnArr = dataFacGroReturnDF.values.astype(float)
         arrName = facName + '_' + pool + '_' + str(divGroNum) + 'Groups' + 'Return'
         dataDic={'colNames': np.array(colNames, dtype=object),
-                 'indDate': dataDSArr.reshape(len(dataDSArr), 1),
+                 'indDate': self.dataDSArr.reshape(len(self.dataDSArr), 1),
                  arrName: dataFacGroReturnArr, \
                  'arrKey': [arrName, 'indDate', 'colNames']}
     
@@ -1546,8 +1587,8 @@ class Factors(object):
     
     
         dataRetArr = dataRetRawArr.copy()
-        startGroInd = sf.nonNanFirIndGet(dataRetArr)
-        startMarInd = sf.nonNanFirIndGet(dataMarRetArr)
+        startGroInd = self.nonNanFirInd(dataRetArr)
+        startMarInd = self.nonNanFirInd(dataMarRetArr)
         startInd = max(startGroInd, startMarInd)
         dataRetArr[:startInd] = 0
         dataRetCumArr = np.cumsum(dataRetArr, axis=0)
@@ -1562,13 +1603,13 @@ class Factors(object):
         fig = plt.figure(figsize=(15, 10))
         ax1 = fig.add_subplot(211)
         for i in range(groNums):
-            ax1.plot(range(len(dataDSArr)), dataRetCumArr[:, i], color=corUseLis[i], lw=1.5, label='Group'+str(i+1))
+            ax1.plot(range(len(self.dataDSArr)), dataRetCumArr[:, i], color=corUseLis[i], lw=1.5, label='Group'+str(i+1))
     
-        ax1.set_xlim(startInd-250, len(dataDSArr)+400)
+        ax1.set_xlim(startInd-250, len(self.dataDSArr)+400)
     
     #    ax1.set_ylim(-0.5, 2.5 )
-        ax1.set_xticks(range(startInd, len(dataDSArr), 250))
-        ax1.set_xticklabels([dataDSArr[i] for i in ax1.get_xticks()], rotation=30, fontsize='small')
+        ax1.set_xticks(range(startInd, len(self.dataDSArr), 250))
+        ax1.set_xticklabels([self.dataDSArr[i] for i in ax1.get_xticks()], rotation=30, fontsize='small')
         #ax1.set_yticks(range(-0.3, 1.8, 0.2))
         ax1.set_yticklabels([str((int(i*100)))+'%' for i in ax1.get_yticks()])
         titleName = facName_Pool + '_' + str(groNums) + 'Groups_ExcessReturn'
@@ -1593,47 +1634,37 @@ class Factors(object):
         return dataRetCumArr
 
 
+    # ----------------------------------------------------------------------
+    # 9. factors
 
+    # ROE
+    # ---
+    # NOTE: will add some note.
+    # TODO: may be packaged to one function.
 
-    '''
-    9. factors 
-
-    '''
-
-
-    '''
-    ROE
-    '''
-
-    '''may be packaged to one function'''
-    
-    #==============================================================================
-    # 1. get netprofit data
-    #==============================================================================
-    
-    
-    def NetprofitDicGet():
-    
+    def NetprofitDicGet(): 
+        # 1. get netprofit data
+   
         # load non financial income statement_new data
         pathNFIC = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_IncomeStatementNew/LC_IncomeStatementNew.mat'
-        dataNFICRaw = cs.SheetToDFGet(pathNFIC)
+        dataNFICRaw = self.SheetToDF(pathNFIC)
         dataNFICColUseLis = [u'CompanyCode', u'InfoPublDate', u'EndDate', u'Mark', u'NetProfit']
         dataNFIncomeTolArr = dataNFICRaw[dataNFICColUseLis]
         # dataframe, select by company code and mark
         dataNFIncomeTolDF = pd.DataFrame(dataNFIncomeTolArr, columns=dataNFICColUseLis)    # 923302
-        dataNFIncomeUseDF = dataNFIncomeTolDF[dataNFIncomeTolDF[u'CompanyCode'].isin(dataComCodeArr)]  # 667895
+        dataNFIncomeUseDF = dataNFIncomeTolDF[dataNFIncomeTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]  # 667895
         dataNFIncomeUseDF = dataNFIncomeUseDF[dataNFIncomeUseDF[u'Mark'].isin([1, 2])]      # 293845
         dataNFIncomeUseDF = dataNFIncomeUseDF[dataNFIncomeUseDF[u'NetProfit'].notnull()]    #293805
     
         # load financial income statement_new data
         pathFIC = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_FIncomeStatementNew/LC_FIncomeStatementNew.mat'
-        dataFICRaw = cs.SheetToDFGet(pathFIC)
+        dataFICRaw = self.SheetToDF(pathFIC)
         dataFICColUseLis = [u'CompanyCode', u'InfoPublDate', u'EndDate', u'Mark', u'NetProfit']
         dataFIncomeTolArr = dataFICRaw[dataFICColUseLis]
     
         # dataframe, select by company code and mark
         dataFIncomeTolDF = pd.DataFrame(dataFIncomeTolArr, columns=dataFICColUseLis)    # 25283
-        dataFIncomeUseDF = dataFIncomeTolDF[dataFIncomeTolDF[u'CompanyCode'].isin(dataComCodeArr)]  # 9550
+        dataFIncomeUseDF = dataFIncomeTolDF[dataFIncomeTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]  # 9550
         dataFIncomeUseDF = dataFIncomeUseDF[dataFIncomeUseDF[u'Mark'].isin([1, 2])]      # 4500
         dataFIncomeUseDF = dataFIncomeUseDF[dataFIncomeUseDF[u'NetProfit'].notnull()]    #4493
     
@@ -1683,28 +1714,28 @@ class Factors(object):
     
         # load non financial balance statement_new data
         pathNF = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_BalanceSheetNew/LC_BalanceSheetNew.mat'
-        dataNFRaw = cs.SheetToDFGet(pathNF)
+        dataNFRaw = self.SheetToDF(pathNF)
         dataNFColUseLis = [u'CompanyCode', u'InfoPublDate', u'EndDate', u'Mark', u'TotalShareholderEquity', u'DeferredTaxAssets', \
                            u'EPreferStock']
         dataNFBalanceTolArr = dataNFRaw[dataNFColUseLis]
     
         # dataframe, select by company code and mark
         dataNFBalanceTolDF = pd.DataFrame(dataNFBalanceTolArr, columns=dataNFColUseLis)    # 789264
-        dataNFBalanceUseDF = dataNFBalanceTolDF[dataNFBalanceTolDF[u'CompanyCode'].isin(dataComCodeArr)]  # 544258
+        dataNFBalanceUseDF = dataNFBalanceTolDF[dataNFBalanceTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]  # 544258
         dataNFBalanceUseDF = dataNFBalanceUseDF[dataNFBalanceUseDF[u'Mark'].isin([1, 2])]      # 287129
         dataNFBalanceUseDF = dataNFBalanceUseDF[dataNFBalanceUseDF[u'TotalShareholderEquity'].notnull()]    #287097
         dataNFBalanceUseDF = dataNFBalanceUseDF[dataNFBalanceUseDF[u'TotalShareholderEquity']!=0]    #287075
     
         # load financial balance statement_new data
         pathF = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_FBalanceSheetNew/LC_FBalanceSheetNew.mat'
-        dataFRaw = cs.SheetToDFGet(pathF)
+        dataFRaw = self.SheetToDF(pathF)
         dataFColUseLis = [u'CompanyCode', u'InfoPublDate', u'EndDate', u'Mark', u'TotalShareholderEquity', u'DeferredTaxAssets', \
                           u'EPreferStock']
         dataFBalanceTolArr = dataFRaw[dataFColUseLis]
     
         # dataframe, select by company code and mark
         dataFBalanceTolDF = pd.DataFrame(dataFBalanceTolArr, columns=dataFColUseLis)    # 23090
-        dataFBalanceUseDF = dataFBalanceTolDF[dataFBalanceTolDF[u'CompanyCode'].isin(dataComCodeArr)]  # 7902
+        dataFBalanceUseDF = dataFBalanceTolDF[dataFBalanceTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]  # 7902
         dataFBalanceUseDF = dataFBalanceUseDF[dataFBalanceUseDF[u'Mark'].isin([1, 2])]      # 4438
         dataFBalanceUseDF = dataFBalanceUseDF[dataFBalanceUseDF[u'TotalShareholderEquity'].notnull()]    #4428
         dataFBalanceUseDF = dataFBalanceUseDF[dataFBalanceUseDF[u'TotalShareholderEquity']!=0]    #4428
@@ -1818,11 +1849,11 @@ class Factors(object):
     #==============================================================================
     def ROE_BarraDFGet():
     
-        '''
+        """
         This function is to calculate ROE values for subsequent barra return.
     
         Netprofit is calculated as the year duration data at the newest date.
-        '''
+        """
     
         # working path
     #    pathROE = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/CompanyFundamentalFactors/ROE/'
@@ -2006,19 +2037,19 @@ class Factors(object):
             dataTolROEDic[code] = dfROEOneCode
     
     
-        dataFormatDF = pd.DataFrame(index=dataDSArr, columns=dataComCodeArr)
+        dataFormatDF = pd.DataFrame(index=self.dataDSArr, columns=self.dataComCodeArr)
     
         for iicode, icode in enumerate(dataTolComCode):
             if dataTolROEDic[icode].size==0:
                 continue
             pubDateLis = dataTolROEDic[icode].index.tolist()
-            pubDateLis.extend(list(dataDSArr))
+            pubDateLis.extend(list(self.dataDSArr))
             allDateArr = np.unique(pubDateLis)
             # famative date process
             icodeDF = dataTolROEDic[icode].reindex(index=allDateArr, method='ffill')
-            icodeDefDF = icodeDF.loc[dataDSArr]
+            icodeDefDF = icodeDF.loc[self.dataDSArr]
             dataFormatDF[icode] = icodeDefDF[u'ReturnOnEquity']
-        dataFormatDF.columns = dataInnerCodeArr
+        dataFormatDF.columns = self.dataInnerCodeArr
     
     
         print 'ROE_Barra DF completed'
@@ -2028,12 +2059,12 @@ class Factors(object):
 
     def ROE_Barra(self):
     
-        '''
+        """
         This program is to calculate ROE formative values and then barra return.
         Netprofit is calculated as the year duration data at the newest date.
         
-        '''
-        dataComCodeArr = tc.codeDFGet().iloc[:, 1].values.astype(float)
+        """
+        self.dataComCodeArr = tc.codeDFGet().iloc[:, 1].values.astype(float)
         
         factName = 'ROE'
         ROESavePathMain = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/CompanyFundamentalFactors/ReturnOnEquity/'
@@ -2080,10 +2111,10 @@ class Factors(object):
         return None
 
 
-    '''
-    IA
-    '''
-
+    # IA
+    # --
+    # NOTE: 
+    # TODO: may be packaged to one function. 
     def IADicGet():
         #
         #==============================================================================
@@ -2096,13 +2127,13 @@ class Factors(object):
         #def equityGet():
         # load non financial balance statement_new data
         pathNF = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_BalanceSheetNew/LC_BalanceSheetNew.mat'
-        dataNFRaw = cs.SheetToDFGet(pathNF)
+        dataNFRaw = self.SheetToDF(pathNF)
         dataNFColUseLis = [u'CompanyCode', u'InfoPublDate', u'EndDate', u'Mark', u'FixedAssets',\
          u'TotalCurrentAssets', u'TotalCurrentLiability', u'TotalAssets']
     
         # dataframe, select by company code and mark
         dataNFBalanceTolDF = dataNFRaw[dataNFColUseLis]
-        dataNFBalanceUseDF = dataNFBalanceTolDF[dataNFBalanceTolDF[u'CompanyCode'].isin(dataComCodeArr)]  #544258
+        dataNFBalanceUseDF = dataNFBalanceTolDF[dataNFBalanceTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]  #544258
         dataNFBalanceUseDF = dataNFBalanceUseDF[dataNFBalanceUseDF[u'Mark'].isin([1, 2])]      #287129
     
         # dropna nan and zero values
@@ -2116,12 +2147,12 @@ class Factors(object):
     
         # load financial balance statement_new data
         pathF = '/data/liushuanglong/MyFiles/Data/JYDB2/LC_FBalanceSheetNew/LC_FBalanceSheetNew.mat'
-        dataFRaw = cs.SheetToDFGet(pathF)
+        dataFRaw = self.SheetToDF(pathF)
         dataFColUseLis = [u'CompanyCode', u'InfoPublDate', u'EndDate', u'Mark', u'FixedAssets', u'TotalAssets']
     
         # dataframe, select by company code and mark
         dataFBalanceTolDF = dataFRaw[dataFColUseLis]
-        dataFBalanceUseDF = dataFBalanceTolDF[dataFBalanceTolDF[u'CompanyCode'].isin(dataComCodeArr)]  # 7902
+        dataFBalanceUseDF = dataFBalanceTolDF[dataFBalanceTolDF[u'CompanyCode'].isin(self.dataComCodeArr)]  # 7902
         dataFBalanceUseDF = dataFBalanceUseDF[dataFBalanceUseDF[u'Mark'].isin([1, 2])]      # 4437
     
         # drop nan
@@ -2206,19 +2237,19 @@ class Factors(object):
                 print time.strftime("%H:%M:%S", time.localtime()),
                 print iicode, icode
     
-        dataFormatDF = pd.DataFrame(index=dataDSArr, columns=dataComCodeArr)
+        dataFormatDF = pd.DataFrame(index=self.dataDSArr, columns=self.dataComCodeArr)
     
         for iicode, icode in enumerate(comCodeUseLis):
             if dataIAUse[icode].size==0:
                 continue
             pubDateLis = dataIAUse[icode].index.tolist()
-            pubDateLis.extend(list(dataDSArr))
+            pubDateLis.extend(list(self.dataDSArr))
             allDateArr = np.unique(pubDateLis)
             # famative date process
             icodeDF = dataIAUse[icode].reindex(index=allDateArr, method='ffill')
-            icodeDefDF = icodeDF.loc[dataDSArr]
+            icodeDefDF = icodeDF.loc[self.dataDSArr]
             dataFormatDF[icode] = icodeDefDF[u'IA']
-        dataFormatDF.columns = dataInnerCodeArr
+        dataFormatDF.columns = self.dataInnerCodeArr
     
         print 'IA_Barra DF completed'
         return dataFormatDF
@@ -2262,7 +2293,6 @@ class Factors(object):
             dataIAYearendDic[code] = dfOneCodeUse
         return dataIAYearendDic
 
-
     def IA_Barra(self):
         
         #==============================================================================
@@ -2304,24 +2334,6 @@ class Factors(object):
         IA_HS300_Exposure = facret.FactorFMExposureGet(IAHS300ReturnPath, facName=factName, pool='HS300')
 
         return None
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
