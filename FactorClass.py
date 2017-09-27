@@ -2169,34 +2169,34 @@ if __name__ == '__main__':
     print '\'factor\' created...\n\n'
     # Have tested, is ok~
 
-#    # Getting DailyQuote.
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting DailyQuote...\n'
-#    factor.DailyQuote()
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tDailyQuote got~\n'
-#    # Have tested, is ok~
-#
-#    # Getting IndexQuote. 
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting IndexQuote...\n'
-#    factor.IndexQuote()
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tIndexQuote got~\n'
-#    # Have tested, is ok~
-#
-#    # Getting Afloats. 
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting Afloats...\n'
-#    factor.AFloatsGet()
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tAfloats got~\n'
-#    # Have tested, is ok~
-#
-#    # Getting ROE_Barra. 
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting ROE_Barra...\n'
-#    factor.ROE_Barra()
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tROE_Barra got~\n'
-#    # Have tested, is ok~
-#
-#    # Getting ROE_FM. 
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting ROE_Barra...\n'
-#    factor.ROE_FM()
-#    print time.strftime("%H:%M:%S", time.localtime()) + '\tROE_Barra got~\n'
+    # Getting DailyQuote.
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting DailyQuote...\n'
+    factor.DailyQuote()
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tDailyQuote got~\n'
+    # Have tested, is ok~
+
+    # Getting IndexQuote. 
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting IndexQuote...\n'
+    factor.IndexQuote()
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tIndexQuote got~\n'
+    # Have tested, is ok~
+
+    # Getting Afloats. 
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting Afloats...\n'
+    factor.AFloatsGet()
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tAfloats got~\n'
+    # Have tested, is ok~
+
+    # Getting ROE_Barra. 
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting ROE_Barra...\n'
+    factor.ROE_Barra()
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tROE_Barra got~\n'
+    # Have tested, is ok~
+
+    # Getting ROE_FM. 
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting ROE_Barra...\n'
+    factor.ROE_FM()
+    print time.strftime("%H:%M:%S", time.localtime()) + '\tROE_Barra got~\n'
 
     # Getting IA_Barra. 
     print time.strftime("%H:%M:%S", time.localtime()) + '\tGetting IA_Barra...\n'
