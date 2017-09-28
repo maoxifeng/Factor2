@@ -1,0 +1,3 @@
+1094         ## load stock AFloats
+   1         pathAF = '/data/liushuanglong/MyFiles/Data/Factors/HLZ/CompanyFundamentalFact     ors/AFloats/'
+
